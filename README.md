@@ -1022,6 +1022,942 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+## 🌐 Complete Frontend Integration Guide
+
+*Everything you need to connect your website to this Razorpay API after deployment*
+
+---
+
+### 📋 Prerequisites Checklist
+
+Before starting, make sure you have:
+
+```
+✅ Backend API deployed on Vercel (e.g., https://your-api.vercel.app)
+✅ Razorpay account with API keys (Test or Live mode)
+✅ Frontend website (React, Vue, Next.js, or plain HTML/JS)
+✅ Backend API URL ready
+```
+
+---
+
+### 🔧 Step 1: Get Your Deployed API URL
+
+After deploying to Vercel, your API will be available at:
+
+```
+https://your-project-name.vercel.app
+```
+
+**Example:**
+- Project Name: `my-rpay-api`
+- API URL: `https://my-rpay-api.vercel.app`
+- Create Order: `https://my-rpay-api.vercel.app/api/create-order`
+- Verify Payment: `https://my-rpay-api.vercel.app/api/verify-payment`
+
+---
+
+### 🔐 Step 2: Set Up Environment Variables in Your Frontend
+
+Create a `.env` file in your frontend project root:
+
+#### For React/Next.js/Vue Projects
+
+```bash
+# .env (Create this file in your frontend project)
+
+# Your Razorpay KEY_ID (from Razorpay Dashboard)
+# This is PUBLIC - safe to expose
+NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_XXXXXXXXXXXX
+
+# Your Backend API URL
+NEXT_PUBLIC_API_URL=https://your-rpay-api.vercel.app
+```
+
+#### For Vanilla JS / HTML Projects
+
+```javascript
+// config.js (Create this file)
+const CONFIG = {
+  RAZORPAY_KEY_ID: 'rzp_test_XXXXXXXXXXXX',
+  API_URL: 'https://your-rpay-api.vercel.app'
+};
+```
+
+**⚠️ IMPORTANT SECURITY NOTES:**
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║  🔒 RAZORPAY_KEY_ID - PUBLIC key, can be exposed to frontend         ║
+║  🔒 RAZORPAY_KEY_SECRET - NEVER expose to frontend (backend only)   ║
+║  🔒 RAZORPAY_WEBHOOK_SECRET - NEVER expose to frontend (backend)    ║
+║                                                                      ║
+║  Only KEY_ID goes in frontend .env files with NEXT_PUBLIC_ prefix   ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+### 📁 Step 3: Project Structure (Frontend)
+
+Your frontend project should look like this:
+
+```
+my-website/
+├── src/
+│   ├── components/
+│   │   └── PaymentButton.jsx      # Payment button component
+│   ├── services/
+│   │   └── paymentService.js      # API calls to backend
+│   ├── pages/
+│   │   └── checkout.jsx           # Checkout page
+│   └── App.jsx
+├── .env                          # Environment variables
+├── .env.local                     # Local overrides
+├── .env.production               # Production variables
+└── package.json
+```
+
+---
+
+### 🔌 Step 4: Create Payment Service
+
+Create a service file to handle API calls:
+
+#### `src/services/paymentService.js`
+
+```javascript
+// Payment service for frontend
+// All API calls to your deployed backend
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-rpay-api.vercel.app';
+
+/**
+ * Create a Razorpay order on backend
+ * @param {Object} orderData - Order details
+ * @returns {Promise<Object>} Order response from backend
+ */
+export async function createOrder(orderData) {
+  try {
+    const response = await fetch(`${API_URL}/api/create-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(orderData),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Failed to create order');
+    }
+
+    return data.data;
+  } catch (error) {
+    console.error('Create order error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Verify payment on backend
+ * @param {Object} paymentData - Payment verification data
+ * @returns {Promise<Object>} Verification response
+ */
+export async function verifyPayment(paymentData) {
+  try {
+    const response = await fetch(`${API_URL}/api/verify-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(paymentData),
+    });
+
+    const data = await response.json();
+
+    return {
+      success: data.success,
+      verified: data.data?.verified || false,
+      message: data.data?.message || data.error?.message,
+    };
+  } catch (error) {
+    console.error('Verify payment error:', error);
+    return { success: false, verified: false, message: error.message };
+  }
+}
+```
+
+---
+
+### 💳 Step 5: Create Payment Component
+
+#### React Component Example
+
+```jsx
+// src/components/RazorpayButton.jsx
+import { useState } from 'react';
+import { createOrder, verifyPayment } from '../services/paymentService';
+
+const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+
+export default function RazorpayButton({ product, amount, onSuccess, onError }) {
+  const [loading, setLoading] = useState(false);
+
+  const handlePayment = async () => {
+    setLoading(true);
+
+    try {
+      // STEP 1: Create order on backend
+      console.log('Creating order on backend...');
+      const order = await createOrder({
+        amount: amount,                    // Amount in PAISE (₹299 = 29900)
+        currency: 'INR',                  // Currency code
+        site: 'my-website',               // Your website identifier
+        product: product.id,              // Product identifier
+        userId: currentUser?.id,          // User ID (optional)
+        metadata: {
+          productName: product.name,
+          // Any custom data
+        }
+      });
+
+      console.log('Order created:', order);
+
+      // STEP 2: Load Razorpay script & open checkout
+      const options = {
+        key: RAZORPAY_KEY_ID,             // Your Razorpay KEY_ID
+        amount: order.amount,              // Amount from order
+        currency: order.currency,          // Currency from order
+        name: 'Your Company Name',
+        description: product.name,
+        order_id: order.orderId,          // Razorpay order ID
+        prefill: {
+          name: currentUser?.name || 'Customer',
+          email: currentUser?.email || 'customer@example.com',
+          contact: currentUser?.phone || '9999999999',
+        },
+        notes: order.notes,               // Include notes
+        theme: {
+          color: '#3399cc',
+        },
+        handler: async (response) => {
+          // STEP 3: Verify payment on backend
+          console.log('Payment successful, verifying...');
+          console.log('Razorpay Response:', response);
+
+          const verification = await verifyPayment({
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature,
+          });
+
+          if (verification.verified) {
+            console.log('✅ Payment verified successfully!');
+            onSuccess?.({
+              orderId: response.razorpay_order_id,
+              paymentId: response.razorpay_payment_id,
+              status: 'verified'
+            });
+          } else {
+            console.error('❌ Payment verification failed!');
+            onError?.('Payment verification failed');
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            console.log('Payment modal closed');
+            setLoading(false);
+          }
+        }
+      };
+
+      // Open Razorpay
+      const rzp = new window.Razorpay(options);
+      
+      rzp.on('payment.failed', (response) => {
+        console.error('❌ Payment failed:', response.error);
+        onError?.(response.error.description);
+      });
+
+      rzp.open();
+
+    } catch (error) {
+      console.error('Payment error:', error);
+      onError?.(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button 
+      onClick={handlePayment} 
+      disabled={loading}
+      style={{
+        padding: '12px 24px',
+        backgroundColor: loading ? '#ccc' : '#3399cc',
+        color: 'white',
+        border: 'none',
+        borderRadius: '8px',
+        cursor: loading ? 'not-allowed' : 'pointer',
+        fontSize: '16px',
+        fontWeight: 'bold',
+      }}
+    >
+      {loading ? '⏳ Processing...' : `💳 Pay ₹${amount / 100}`}
+    </button>
+  );
+}
+```
+
+---
+
+### 🎯 Step 6: Usage in Your Pages
+
+#### Next.js Page
+
+```jsx
+// pages/checkout.jsx
+import dynamic from 'next/dynamic';
+
+// Load Razorpay script dynamically
+const RazorpayButton = dynamic(() => import('../components/RazorpayButton'), {
+  ssr: false,
+  loading: () => <button disabled>Loading...</button>
+});
+
+const product = {
+  id: 'prod_123',
+  name: 'Premium Course',
+  price: 29900 // in paise
+};
+
+export default function CheckoutPage() {
+  const handleSuccess = (data) => {
+    console.log('Success:', data);
+    alert('Payment successful! Order ID: ' + data.orderId);
+    // Redirect to thank you page
+    // Update your database
+    // Send confirmation email
+  };
+
+  const handleError = (error) => {
+    console.error('Error:', error);
+    alert('Payment failed: ' + error);
+  };
+
+  return (
+    <div style={{ padding: '50px', textAlign: 'center' }}>
+      <h1>Checkout</h1>
+      <div style={{ border: '1px solid #ddd', padding: '20px', borderRadius: '8px' }}>
+        <h2>{product.name}</h2>
+        <p>Price: ₹{product.price / 100}</p>
+        
+        <RazorpayButton
+          product={product}
+          amount={product.price}
+          onSuccess={handleSuccess}
+          onError={handleError}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### 🔄 Step 7: Payment Flow Diagram
+
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                        💰 COMPLETE PAYMENT FLOW 💰                           ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+    ┌──────────────┐           ┌──────────────┐           ┌──────────────┐
+    │              │           │              │           │              │
+    │   FRONTEND   │           │  BACKEND API │           │   RAZORPAY   │
+    │   (Your      │           │  (Deployed   │           │   SERVER     │
+    │   Website)   │           │  on Vercel)  │           │              │
+    │              │           │              │           │              │
+    └──────┬───────┘           └──────┬───────┘           └──────┬───────┘
+           │                          │                          │
+           │                          │                          │
+           │  1. POST /api/create-order                          │
+           │  { amount, site, product }                          │
+           │ ─────────────────────────────────────────────────► │
+           │                          │                          │
+           │                          │  Create Order            │
+           │                          │ ────────────────────────►│
+           │                          │                          │
+           │                          │  { orderId, amount, ... } │
+           │  { orderId, amount, ... } │ ◄────────────────────────│
+           │ ◄─────────────────────────                          │
+           │                          │                          │
+           │                          │                          │
+           │  2. Open Razorpay Checkout                          │
+           │ ┌─────────────────────────────────────────────┐     │
+           │ │  ┌─────────────┐                           │     │
+           │ │  │ Credit Card │  UPI                      │     │
+           │ │  │ ●●●● ●●●●   │  @upi                    │     │
+           │ │  │ 11/25 123   │  Pay                      │     │
+           │ │  └─────────────┘                           │     │
+           │ └─────────────────────────────────────────────┘     │
+           │                          │                          │
+           │                          │                          │
+           │  3. POST /api/verify-payment                       │
+           │  { razorpay_order_id,                              │
+           │    razorpay_payment_id,                            │
+           │    razorpay_signature }                            │
+           │ ─────────────────────────────────────────────────► │
+           │                          │                          │
+           │                          │  Verify Signature        │
+           │                          │  (HMAC-SHA256)          │
+           │                          │                          │
+           │                          │  ✅ VERIFIED or ❌ FAILED│
+           │  { verified: true }      │ ◄────────────────────────│
+           │ ◄─────────────────────────                          │
+           │                          │                          │
+           │                          │                          │
+           │  ✅ Payment Complete!   │                          │
+           │  Update UI, Redirect    │                          │
+           │                          │                          │
+           └──────────────────────────┘                          │
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║  🎉 SUCCESS! Your payment flow is complete and secure!                       ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+### 📊 Step 8: Understanding Status Codes
+
+After payment, here's what each status means:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                            │
+│   PAYMENT STATUS FLOW                                                       │
+│                                                                            │
+│   ┌─────────┐     ┌──────────┐     ┌───────────┐     ┌──────────┐         │
+│   │ Created │────►│ Attempted │────►│  Paid     │────►│ Captured │         │
+│   └─────────┘     └──────────┘     └───────────┘     └──────────┘         │
+│       │                                                   │               │
+│       │                                                   │               │
+│       ▼                                                   ▼               │
+│   ┌─────────┐                                       ┌──────────┐          │
+│   │ Failed  │                                       │ Refunded │          │
+│   └─────────┘                                       └──────────┘          │
+│                                                                            │
+│   Status Meanings:                                                          │
+│   ───────────────                                                          │
+│   • Created    → Order created, waiting for payment                         │
+│   • Attempted  → User started payment process                               │
+│   • Paid       → Payment received by Razorpay                              │
+│   • Captured  → Money transferred to your account (final success)           │
+│   • Failed     → Payment failed at any stage                               │
+│   • Refunded  → Money returned to customer                                 │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 📧 Step 9: Webhook Status Updates
+
+Your backend automatically handles webhooks. Here's what happens:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                            │
+│   🪝 WEBHOOK FLOW                                                          │
+│                                                                            │
+│   RAZORPAY                      YOUR BACKEND                  YOUR DB      │
+│   ────────                      ────────────                  ───────       │
+│                                                                            │
+│   Payment Success                                                            │
+│        │                                                                    │
+│        ▼                                                                    │
+│   ┌────────────────────┐                                                   │
+│   │ POST /api/webhook   │                                                   │
+│   │ event: payment.     │                                                   │
+│   │       captured      │                                                   │
+│   │ X-Razorpay-         │                                                   │
+│   │ Signature: xyz      │                                                   │
+│   └──────────┬──────────┘                                                   │
+│              │                                                             │
+│              ▼                                                             │
+│   ┌────────────────────┐                                                   │
+│   │ Verify Signature   │                                                   │
+│   │ (HMAC-SHA256)     │                                                   │
+│   └──────────┬──────────┘                                                   │
+│              │                                                             │
+│              │ ✅ Valid                                                    │
+│              ▼                                                             │
+│   ┌────────────────────┐                                                   │
+│   │ handlePayment      │                                                   │
+│   │ Captured()         │                                                   │
+│   │                    │                                                   │
+│   │ • Log event        │                                                   │
+│   │ • Update DB status │ ────────────────────────────────────────────────►│
+│   │ • Send email       │                                                   │
+│   └────────────────────┘                                                   │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🔒 Step 10: Security Checklist
+
+Before going live, verify:
+
+```
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║  🔒 SECURITY CHECKLIST                                                   ║
+║                                                                          ║
+║  ☐ Use HTTPS on frontend (SSL certificate)                                ║
+║  ☐ Never expose RAZORPAY_KEY_SECRET in frontend                          ║
+║  ☐ Always verify payments on backend (never trust frontend alone)         ║
+║  ☐ Webhook URL uses HTTPS                                                ║
+║  ☐ Webhook signature verification enabled                                ║
+║  ☐ CORS configured with your domain(s) only                              ║
+║  ☐ Rate limiting enabled                                                 ║
+║  ☐ Input validation working                                              ║
+║  ☐ Test mode keys replaced with live keys                                ║
+║                                                                          ║
+║  🚀 PRODUCTION CHECKLIST                                                  ║
+║                                                                          ║
+║  ☐ .env.local created with production keys                               ║
+║  ☐ Vercel environment variables set                                      ║
+║  ☐ API deployed to production                                             ║
+║  ☐ Frontend using production API URL                                      ║
+║  ☐ Test payment completed successfully                                   ║
+║  ☐ Webhook configured in Razorpay Dashboard                               ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+### 🌍 Step 11: Environment Variables Reference
+
+#### Your Backend (.env on Vercel)
+
+```bash
+# Required
+RAZORPAY_KEY_ID=rzp_live_XXXXXXXXXXXX
+RAZORPAY_KEY_SECRET=XXXXXXXXXXXXXXXXXXXXXXXX
+RAZORPAY_WEBHOOK_SECRET=XXXXXXXXXXXXXXXXXXXXXXXX
+
+# Optional
+ALLOWED_ORIGINS=https://your-frontend.com
+RATE_LIMIT_MAX_REQUESTS=100
+LOG_LEVEL=info
+```
+
+#### Your Frontend (.env.local in React/Next.js)
+
+```bash
+# Public variables (can be accessed in browser)
+NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_XXXXXXXXXXXX
+NEXT_PUBLIC_API_URL=https://your-rpay-api.vercel.app
+
+# Private variables (server-side only)
+# Don't add private keys here!
+```
+
+#### Your Frontend (.env in Vanilla JS)
+
+```javascript
+// config.js
+const CONFIG = {
+  RAZORPAY_KEY_ID: 'rzp_live_XXXXXXXXXXXX',
+  API_URL: 'https://your-rpay-api.vercel.app'
+};
+```
+
+---
+
+### 📱 Step 12: Different Frontend Frameworks
+
+#### React (with useRazorpay hook)
+
+```jsx
+import { useCallback, useState } from 'react';
+import { loadScript } from '../utils/loadScript';
+import { createOrder, verifyPayment } from '../services/paymentService';
+
+export function useRazorpay() {
+  const [loading, setLoading] = useState(false);
+
+  const displayRazorpay = useCallback(async (amount, product) => {
+    setLoading(true);
+
+    // Load Razorpay script
+    await loadScript('https://checkout.razorpay.com/v1/checkout.js');
+
+    // Create order
+    const order = await createOrder({
+      amount,
+      site: 'my-app',
+      product: product.id
+    });
+
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'My Business',
+      order_id: order.orderId,
+      handler: async (response) => {
+        const verification = await verifyPayment({
+          razorpayOrderId: response.razorpay_order_id,
+          razorpayPaymentId: response.razorpay_payment_id,
+          razorpaySignature: response.razorpay_signature,
+        });
+        return verification;
+      }
+    };
+
+    const paymentObject = new window.Razorpay(options);
+    paymentObject.open();
+    setLoading(false);
+  }, []);
+
+  return { displayRazorpay, loading };
+}
+```
+
+#### Vue 3 Composition API
+
+```vue
+<template>
+  <button @click="pay" :disabled="loading">
+    {{ loading ? 'Processing...' : 'Pay Now' }}
+  </button>
+</template>
+
+<script setup>
+import { ref } from 'vue';
+import { createOrder, verifyPayment } from '@/services/paymentService';
+
+const loading = ref(false);
+
+const pay = async () => {
+  loading.value = true;
+  
+  const order = await createOrder({
+    amount: 29900,
+    site: 'my-vue-app',
+    product: 'product-id'
+  });
+
+  const options = {
+    key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+    amount: order.amount,
+    order_id: order.orderId,
+    handler: async (response) => {
+      await verifyPayment({
+        razorpayOrderId: response.razorpay_order_id,
+        razorpayPaymentId: response.razorpay_payment_id,
+        razorpaySignature: response.razorpay_signature,
+      });
+    }
+  };
+
+  const rzp = new Razorpay(options);
+  rzp.open();
+  loading.value = false;
+};
+</script>
+```
+
+#### Plain HTML/JavaScript
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Buy Now</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+  <button onclick="pay()">Buy for ₹299</button>
+
+  <script>
+    // Configuration
+    const CONFIG = {
+      RAZORPAY_KEY_ID: 'rzp_test_XXXXXXXXXXXX',
+      API_URL: 'https://your-api.vercel.app'
+    };
+
+    async function pay() {
+      // Step 1: Create order
+      const orderRes = await fetch(CONFIG.API_URL + '/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: 29900,
+          site: 'my-html-page',
+          product: 'item-1'
+        })
+      });
+      
+      const { data: order } = await orderRes.json();
+
+      // Step 2: Open Razorpay
+      const options = {
+        key: CONFIG.RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'My Store',
+        order_id: order.orderId,
+        handler: async (response) => {
+          // Step 3: Verify payment
+          const verifyRes = await fetch(CONFIG.API_URL + '/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature
+            })
+          });
+          
+          const { success } = await verifyRes.json();
+          alert(success ? 'Payment successful!' : 'Payment failed');
+        }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.open();
+    }
+  </script>
+</body>
+</html>
+```
+
+---
+
+### 🎯 Step 13: Complete Integration Example
+
+Here's a full-stack example with everything connected:
+
+```jsx
+// Complete React Component with Error Handling
+// src/components/ProductCard.jsx
+
+import { useState } from 'react';
+import { createOrder, verifyPayment } from '../services/paymentService';
+
+export default function ProductCard({ product }) {
+  const [status, setStatus] = useState('idle'); // idle, loading, success, error
+  const [message, setMessage] = useState('');
+
+  const handleBuy = async () => {
+    setStatus('loading');
+    setMessage('');
+
+    try {
+      // 1. Create order
+      const order = await createOrder({
+        amount: product.price,
+        site: 'shop',
+        product: product.id,
+        userId: currentUser?.id,
+        metadata: {
+          productName: product.name,
+          quantity: '1'
+        }
+      });
+
+      // 2. Initialize Razorpay
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'My Store',
+        description: product.name,
+        order_id: order.orderId,
+        prefill: {
+          name: currentUser?.name || 'Guest',
+          email: currentUser?.email,
+          contact: currentUser?.phone
+        },
+        handler: async (response) => {
+          // 3. Verify payment
+          const result = await verifyPayment({
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature
+          });
+
+          if (result.verified) {
+            setStatus('success');
+            setMessage('Payment successful! Order ID: ' + response.razorpay_payment_id);
+            // Update your database
+            // Send confirmation email
+            // Redirect to success page
+          } else {
+            setStatus('error');
+            setMessage('Payment verification failed');
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (response) => {
+        setStatus('error');
+        setMessage('Payment failed: ' + response.error.description);
+      });
+
+      rzp.open();
+
+    } catch (error) {
+      setStatus('error');
+      setMessage('Error: ' + error.message);
+    }
+  };
+
+  return (
+    <div className="product-card">
+      <img src={product.image} alt={product.name} />
+      <h3>{product.name}</h3>
+      <p>₹{product.price / 100}</p>
+      
+      <button onClick={handleBuy} disabled={status === 'loading'}>
+        {status === 'loading' ? 'Processing...' : 'Buy Now'}
+      </button>
+      
+      {message && (
+        <p className={`message ${status}`}>
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+### 🚨 Step 14: Troubleshooting Common Issues
+
+```
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║  ❌ COMMON ISSUES & SOLUTIONS                                            ║
+║                                                                          ║
+║  ─────────────────────────────────────────────────────────────────────   ║
+║                                                                          ║
+║  Issue: "Razorpay is not defined"                                       ║
+║  Solution: Script not loaded. Add:                                      ║
+║             <script src="https://checkout.razorpay.com/v1/checkout.js"> │
+║                                                                          ║
+║  ─────────────────────────────────────────────────────────────────────   ║
+║                                                                          ║
+║  Issue: "Order creation failed"                                          ║
+║  Solution: Check backend .env RAZORPAY_KEY_ID is correct                ║
+║             Verify API is deployed and accessible                       ║
+║                                                                          ║
+║  ─────────────────────────────────────────────────────────────────────   ║
+║                                                                          ║
+║  Issue: "Signature verification failed"                                 ║
+║  Solution: Ensure RAZORPAY_KEY_SECRET is correct in backend            ║
+║             Never use frontend'srazorpaySignature directly             ║
+║                                                                          ║
+║  ─────────────────────────────────────────────────────────────────────   ║
+║                                                                          ║
+║  Issue: "CORS error"                                                     ║
+║  Solution: Add your frontend URL to ALLOWED_ORIGINS in backend         ║
+║                                                                          ║
+║  ─────────────────────────────────────────────────────────────────────   ║
+║                                                                          ║
+║  Issue: "Webhook not working"                                            ║
+║  Solution: Check webhook URL is HTTPS                                   ║
+║             Verify RAZORPAY_WEBHOOK_SECRET is set                       ║
+║             Check Razorpay Dashboard webhook logs                       ║
+║                                                                          ║
+║  ─────────────────────────────────────────────────────────────────────   ║
+║                                                                          ║
+║  Issue: "Payment modal not opening"                                      ║
+║  Solution: Check RAZORPAY_KEY_ID is correct                             ║
+║             Use correct KEY_ID (test vs live)                           ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+### 📞 Step 15: Getting Help
+
+If you need help:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                            │
+│   📚 RESOURCES                                                             │
+│                                                                            │
+│   • Razorpay Docs: https://razorpay.com/docs/                              │
+│   • Vercel Docs: https://vercel.com/docs                                  │
+│   • GitHub Issues: https://github.com/yourusername/rpay-backend-api/issues │
+│   • Discord Community: Join our developer community                       │
+│                                                                            │
+│   💬 Still need help?                                                     │
+│                                                                            │
+│   1. Check the troubleshooting section above                              │
+│   2. Search existing GitHub issues                                        │
+│   3. Create a new issue with:                                             │
+│      - Your frontend framework                                            │
+│      - Error message                                                      │
+│      - Steps to reproduce                                                 │
+│      - Code snippet                                                       │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🎉 You're All Set!
+
+```
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║   🎊 CONGRATULATIONS! 🎊                                                 ║
+║                                                                          ║
+║   You've successfully integrated Razorpay payments into your website!    ║
+║                                                                          ║
+║   ✅ Backend API deployed on Vercel                                       ║
+║   ✅ Frontend integrated with payment flow                               ║
+║   ✅ Payment verification working                                         ║
+║   ✅ Webhooks configured                                                  ║
+║   ✅ Security best practices implemented                                  ║
+║                                                                          ║
+║   🚀 Time to start accepting real payments!                              ║
+║                                                                          ║
+║   Remember: Switch from Test to Live keys when ready for production!     ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+*Happy Coding! 💻 | Questions? Create an issue on GitHub | ⭐ Star this repo if it helped!*
+
+---
+
 <div align="center">
 
 ```
