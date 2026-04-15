@@ -1,0 +1,26 @@
+{
+  "name": "rpay-backend-api",
+  "version": "1.0.0",
+  "description": "Production-ready Razorpay backend API for Vercel serverless functions",
+  "type": "module",
+  "main": "api/index.ts",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "tsc",
+    "deploy": "vercel --prod",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "razorpay": "^2.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "vercel": "^33.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
