@@ -1,8 +1,5 @@
-import { NextRequest } from 'next/server';
 import {
   verifyWebhookSignature,
-  validateWebhookPayload,
-  ValidationError,
   sendSuccess,
   sendValidationError,
   sendUnauthorized,
@@ -237,7 +234,7 @@ async function handleRefund(
   // });
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   const requestId = generateRequestId();
 
   logger.info(`[${requestId}] Webhook received`);

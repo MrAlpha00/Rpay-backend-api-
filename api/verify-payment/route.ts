@@ -21,11 +21,11 @@ export const config = {
   },
 };
 
-export async function OPTIONS(request: NextRequest): Promise<Response> {
+export async function OPTIONS(request: Request): Promise<Response> {
   return handleCorsPreflight(request);
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   const requestId = generateRequestId();
 
   logger.info(`[${requestId}] Payment verification request received`);
