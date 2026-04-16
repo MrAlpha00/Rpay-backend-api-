@@ -102,7 +102,7 @@ export async function POST(request: Request): Promise<Response> {
     partial_payment?: boolean;
   } = {
     amount: amountInPaise,
-    currency,
+    currency: currency || 'INR',
     receipt: receipt || `rcpt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
     notes: orderNotes,
   };
