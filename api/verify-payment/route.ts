@@ -1,11 +1,9 @@
-import { NextRequest } from 'next/server';
 import {
   verifyPaymentSignature,
   validateVerifyPaymentInput,
   ValidationError,
   sendSuccess,
   sendValidationError,
-  sendUnauthorized,
   sendForbidden,
   sendInternalError,
   getCorsHeaders,
