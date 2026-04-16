@@ -2,8 +2,11 @@
   "version": 2,
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "framework": null,
-  "regions": ["ap-south-1", "singapore"],
+  "framework": "nextjs",
+  "regions": [
+    "ap-south-1",
+    "singapore"
+  ],
   "functions": {
     "api/**/*.ts": {
       "memory": 1024,
