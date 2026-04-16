@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "framework": "nextjs",
+  "framework": null,
   "regions": ["ap-south-1", "singapore"],
   "functions": {
     "api/**/*.ts": {
