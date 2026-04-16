@@ -1,5 +1,3 @@
-import { NextRequest } from 'next/server';
-
 const ALLOWED_ORIGINS = (
   process.env.ALLOWED_ORIGINS || 
   'http://localhost:3000,http://localhost:3001'
@@ -25,15 +23,22 @@ const DEFAULT_OPTIONS: Required<CorsOptions> = {
   credentials: CREDENTIALS,
 };
 
-/**
- * Get CORS headers for a request
- */
+function getOriginFromRequest(request: Request | { headers?: Headers }): string | null {
+  if (request instanceof Request) {
+    return request.headers.get('origin');
+  }
+  if (request.headers instanceof Headers) {
+    return request.headers.get('origin');
+  }
+  return null;
+}
+
 export function getCorsHeaders(
-  request: NextRequest,
+  request: Request | { headers?: Headers },
   options: CorsOptions = {}
 ): Record<string, string> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const origin = request.headers.get('origin');
+  const origin = getOriginFromRequest(request);
 
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': opts.allowedMethods.join(', '),
@@ -62,7 +67,7 @@ export function getCorsHeaders(
  * Handle CORS preflight requests
  */
 export function handleCorsPreflight(
-  request: NextRequest,
+  request: Request | { headers?: Headers },
   options: CorsOptions = {}
 ): Response {
   const headers = getCorsHeaders(request, options);
@@ -86,7 +91,7 @@ export function isOriginAllowed(origin: string | null, allowedOrigins: string[])
  */
 export function withCorsHeaders(
   response: Response,
-  request: NextRequest,
+  request: Request | { headers?: Headers },
   options: CorsOptions = {}
 ): Response {
   const corsHeaders = getCorsHeaders(request, options);
